@@ -172,61 +172,6 @@ macro_rules! named {
     };
 }
 
-/// Invoke the given parser function with the passed in arguments.
-///
-/// - **Syntax:** `call!(FUNCTION, ARGS...)`
-///
-///   where the signature of the function is `fn(&[U], ARGS...) -> IPResult<&[U], T>`
-/// - **Output:** `T`, the result of invoking the function `FUNCTION`
-#[macro_export]
-macro_rules! call {
-    ($i:expr, $fun:expr $(, $args:expr)*) => {
-        $fun($i $(, $args)*)
-    };
-}
-
-/// Transform the result of a parser by applying a function or closure.
-///
-/// - **Syntax:** `map!(THING, FN)`
-/// - **Output:** the return type of function FN applied to THING
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::{Expr, ExprIf};
-///
-/// fn get_cond(if_: ExprIf) -> Expr {
-///     *if_.cond
-/// }
-///
-/// // Parses an `if` statement but returns the condition part only.
-/// named!(if_condition -> Expr,
-///     map!(syn!(ExprIf), get_cond)
-/// );
-///
-/// // Or equivalently:
-/// named!(if_condition2 -> Expr,
-///     map!(syn!(ExprIf), |if_| *if_.cond)
-/// );
-/// #
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! map {
-    ($i:expr, $submac:ident!( $($args:tt)* ), $g:expr) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Err(err) =>
-                ::std::result::Result::Err(err),
-            ::std::result::Result::Ok((i, o)) =>
-                ::std::result::Result::Ok((i, $crate::invoke($g, o))),
-        }
-    };
-
-    ($i:expr, $f:expr, $g:expr) => {
-        map!($i, call!($f), $g)
-    };
-}
 
 // Somehow this helps with type inference in `map!`.
 //
@@ -427,38 +372,6 @@ pub fn many0<'a, T>(mut input: Cursor, f: fn(Cursor) -> PResult<T>) -> PResult<V
             }
         }
     }
-}
-
-/// Parse a value without consuming it from the input data.
-///
-/// - **Syntax:** `peek!(THING)`
-/// - **Output:** `THING`
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::{Expr, Ident};
-///
-/// // Parse an expression that begins with an identifier.
-/// named!(ident_expr -> (Ident, Expr),
-///     tuple!(peek!(syn!(Ident)), syn!(Expr))
-/// );
-///
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! peek {
-    ($i:expr, $submac:ident!( $($args:tt)* )) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Ok((_, o)) => ::std::result::Result::Ok(($i, o)),
-            ::std::result::Result::Err(err) => ::std::result::Result::Err(err),
-        }
-    };
-
-    ($i:expr, $f:expr) => {
-        peek!($i, call!($f))
-    };
 }
 
 /// Pattern-match the result of a parser to select which other parser to run.
@@ -686,77 +599,6 @@ macro_rules! tuple_parser {
 
     ($i:expr, ($($parsed:expr),*)) => {
         ::std::result::Result::Ok(($i, ($($parsed),*)))
-    };
-}
-
-/// Run a series of parsers, returning the result of the first one which
-/// succeeds.
-///
-/// Optionally allows for the result to be transformed.
-///
-/// - **Syntax:** `alt!(THING1 | THING2 => { FUNC } | ...)`
-/// - **Output:** `T`, the return type of `THING1` and `FUNC(THING2)` and ...
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::Ident;
-///
-/// named!(ident_or_bang -> Ident,
-///     alt!(
-///         syn!(Ident)
-///         |
-///         punct!(!) => { |_| "BANG".into() }
-///     )
-/// );
-///
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! alt {
-    ($i:expr, $e:ident | $($rest:tt)*) => {
-        alt!($i, call!($e) | $($rest)*)
-    };
-
-    ($i:expr, $subrule:ident!( $($args:tt)*) | $($rest:tt)*) => {
-        match $subrule!($i, $($args)*) {
-            res @ ::std::result::Result::Ok(_) => res,
-            _ => alt!($i, $($rest)*)
-        }
-    };
-
-    ($i:expr, $subrule:ident!( $($args:tt)* ) => { $gen:expr } | $($rest:tt)+) => {
-        match $subrule!($i, $($args)*) {
-            ::std::result::Result::Ok((i, o)) =>
-                ::std::result::Result::Ok((i, $gen(o))),
-            ::std::result::Result::Err(_) => alt!($i, $($rest)*),
-        }
-    };
-
-    ($i:expr, $e:ident => { $gen:expr } | $($rest:tt)*) => {
-        alt!($i, call!($e) => { $gen } | $($rest)*)
-    };
-
-    ($i:expr, $e:ident => { $gen:expr }) => {
-        alt!($i, call!($e) => { $gen })
-    };
-
-    ($i:expr, $subrule:ident!( $($args:tt)* ) => { $gen:expr }) => {
-        match $subrule!($i, $($args)*) {
-            ::std::result::Result::Ok((i, o)) =>
-                ::std::result::Result::Ok((i, $gen(o))),
-            ::std::result::Result::Err(err) =>
-                ::std::result::Result::Err(err),
-        }
-    };
-
-    ($i:expr, $e:ident) => {
-        alt!($i, call!($e))
-    };
-
-    ($i:expr, $subrule:ident!( $($args:tt)*)) => {
-        $subrule!($i, $($args)*)
     };
 }
 
