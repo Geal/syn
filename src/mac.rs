@@ -158,7 +158,7 @@ pub mod parsing {
                 Some((rest, token @ TokenTree { kind: TokenNode::Group(..), .. })) => {
                     Ok((rest, ::TokenTree(token)))
                 }
-                _ => parse_error(),
+                _ => parse_error(input),
             }
         }
     }

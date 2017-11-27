@@ -226,10 +226,10 @@ pub mod parsing {
         fn parse(input: Cursor) -> PResult<Self> {
             let (rest, span, sym) = match input.word() {
                 Some(word) => word,
-                _ => return parse_error(),
+                _ => return parse_error(input),
             };
             if sym.as_str().starts_with('\'') {
-                return parse_error();
+                return parse_error(input);
             }
             match sym.as_str() {
                 // From https://doc.rust-lang.org/grammar.html#keywords
@@ -239,7 +239,7 @@ pub mod parsing {
                 "mut" | "offsetof" | "override" | "priv" | "proc" | "pub" | "pure" | "ref" |
                 "return" | "Self" | "self" | "sizeof" | "static" | "struct" | "super" | "trait" |
                 "true" | "type" | "typeof" | "unsafe" | "unsized" | "use" | "virtual" | "where" |
-                "while" | "yield" => return parse_error(),
+                "while" | "yield" => return parse_error(input),
                 _ => {}
             }
 

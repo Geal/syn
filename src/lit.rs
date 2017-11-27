@@ -119,7 +119,7 @@ pub mod parsing {
                         } else if sym.as_str() == "false" {
                             LitKind::Bool(false)
                         } else {
-                            return parse_error();
+                            return parse_error(input);
                         };
 
                         Ok((rest, Lit {
@@ -127,7 +127,7 @@ pub mod parsing {
                             value: kind
                         }))
                     }
-                    _ => parse_error(),
+                    _ => parse_error(input),
                 }
             }
         }

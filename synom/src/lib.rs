@@ -24,6 +24,8 @@
 extern crate proc_macro;
 extern crate proc_macro2;
 
+#[macro_use] extern crate nom;
+
 #[cfg(feature = "printing")]
 extern crate quote;
 
@@ -33,6 +35,7 @@ pub use proc_macro2::{TokenTree, TokenStream};
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
+use nom::{Convert,IResult};
 
 #[cfg(feature = "parsing")]
 #[doc(hidden)]
@@ -46,13 +49,14 @@ pub mod cursor;
 pub use cursor::{SynomBuffer, Cursor};
 
 /// The result of a parser
-pub type PResult<'a, O> = Result<(Cursor<'a>, O), ParseError>;
+pub type PResult<'a, O> = IResult<Cursor<'a>, O, ParseError>;
+//Result<(Cursor<'a>, O), ParseError>;
 
 /// An error with a default error message.
 ///
 /// NOTE: We should provide better error messages in the future.
-pub fn parse_error<O>() -> PResult<'static, O> {
-    Err(ParseError(None))
+pub fn parse_error<'a,O>(input: Cursor<'a>) -> PResult<'a, O> {
+    Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), input)))
 }
 
 pub trait Synom: Sized {
@@ -99,11 +103,28 @@ impl ParseError {
     pub fn new<T: Into<String>>(msg: T) -> Self {
         ParseError(Some(msg.into()))
     }
+
+    #[doc(hidden)]
+    pub fn new_empty() -> Self {
+        ParseError(None)
+    }
 }
 
 impl Synom for TokenStream {
     fn parse(input: Cursor) -> PResult<Self> {
         Ok((Cursor::empty(), input.token_stream()))
+    }
+}
+
+impl<'a> From<nom::Err<Cursor<'a>>> for ParseError {
+    fn from(error: nom::Err<Cursor<'a>>) -> Self {
+        ParseError(None)
+    }
+}
+
+impl From<u32> for ParseError {
+    fn from(_: u32) -> Self {
+        ParseError(None)
     }
 }
 
@@ -224,7 +245,7 @@ pub fn invoke<T, R, F: FnOnce(T) -> R>(f: F, t: T) -> R {
 macro_rules! not {
     ($i:expr, $submac:ident!( $($args:tt)* )) => {
         match $submac!($i, $($args)*) {
-            ::std::result::Result::Ok(_) => $crate::parse_error(),
+            ::std::result::Result::Ok(_) => $crate::parse_error($i),
             ::std::result::Result::Err(_) =>
                 ::std::result::Result::Ok(($i, ())),
         }
@@ -268,7 +289,7 @@ macro_rules! cond_reduce {
         if $cond {
             $submac!($i, $($args)*)
         } else {
-            $crate::parse_error()
+            $crate::parse_error($i)
         }
     };
 
@@ -360,7 +381,7 @@ macro_rules! many0 {
                 ::std::result::Result::Ok((i, o)) => {
                     // loop trip must always consume (otherwise infinite loops)
                     if i == input {
-                        ret = $crate::parse_error();
+                        ret = $crate::parse_error(input);
                         break;
                     }
 
@@ -398,7 +419,7 @@ pub fn many0<'a, T>(mut input: Cursor, f: fn(Cursor) -> PResult<T>) -> PResult<V
             Ok((i, o)) => {
                 // loop trip must always consume (otherwise infinite loops)
                 if i == input {
-                    return parse_error();
+                    return Err(nom::Err::Error(error_position!(ErrorKind::Many0, input)));
                 }
 
                 res.push(o);
@@ -593,9 +614,10 @@ macro_rules! value {
 #[macro_export]
 macro_rules! reject {
     ($i:expr,) => {
-        $crate::parse_error()
+        $crate::parse_error($i)
     }
 }
+
 
 /// Run a series of parsers and produce all of the results in a tuple.
 ///
@@ -825,10 +847,10 @@ macro_rules! input_end {
 
 // Not a public API
 #[doc(hidden)]
-pub fn input_end(input: Cursor) -> PResult<'static, ()> {
+pub fn input_end<'a>(input: Cursor<'a>) -> PResult<'a, ()> {
     if input.eof() {
         Ok((Cursor::empty(), ()))
     } else {
-        parse_error()
+        Err(nom::Err::Error(error_position!(ErrorKind::Eof, input)))
     }
 }

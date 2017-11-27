@@ -1,6 +1,7 @@
 use std::iter::FromIterator;
 use std::slice;
 use std::vec;
+use nom;
 #[cfg(feature = "extra-traits")]
 use std::fmt::{self, Debug};
 
@@ -345,7 +346,8 @@ impl<T, D> Element<T, D> {
 #[cfg(feature = "parsing")]
 mod parsing {
     use super::Delimited;
-    use {PResult, Cursor, Synom, parse_error};
+    use {PResult, Cursor, Synom};
+    use nom;
 
     impl<T, D> Delimited<T, D>
         where T: Synom,
@@ -376,7 +378,7 @@ mod parsing {
             -> PResult<Self>
         {
             match Self::parse(input, parse, false) {
-                Ok((_, ref b)) if b.is_empty() => parse_error(),
+                Ok((_, ref b)) if b.is_empty() => Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), input))),
                 other => other,
             }
         }
@@ -401,7 +403,7 @@ mod parsing {
                 Err(_) => Ok((input, res)),
                 Ok((i, o)) => {
                     if i == input {
-                        return parse_error();
+                        return Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), input)));
                     }
                     input = i;
                     res.push_first(o);

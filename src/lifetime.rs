@@ -98,10 +98,10 @@ pub mod parsing {
         fn parse(input: Cursor) -> PResult<Self> {
             let (rest, span, sym) = match input.word() {
                 Some(word) => word,
-                _ => return parse_error(),
+                _ => return parse_error(input),
             };
             if !sym.as_str().starts_with('\'') {
-                return parse_error();
+                return parse_error(input);
             }
 
             Ok((rest, Lifetime {

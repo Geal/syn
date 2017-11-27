@@ -10,6 +10,8 @@ extern crate unicode_xid;
 extern crate quote;
 
 #[macro_use]
+extern crate nom;
+#[macro_use]
 extern crate synom;
 
 #[macro_use]
@@ -173,7 +175,7 @@ fn _parse<T>(tokens: proc_macro2::TokenStream) -> Result<T, ParseError>
                 ParseError::new("failed to parse all tokens")
             }
         }
-        Err(err) => err,
+        Err(err) => ParseError::new_empty(),
     };
     match T::description() {
         Some(s) => Err(ParseError::new(format!("failed to parse {}: {}", s, err))),

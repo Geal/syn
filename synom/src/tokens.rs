@@ -6,6 +6,7 @@
 //! corresponding feature is activated.
 
 use span::Span;
+use ParseError;
 
 macro_rules! tokens {
     (
@@ -392,8 +393,10 @@ macro_rules! keyword {
 mod parsing {
     use proc_macro2::{Delimiter, Spacing};
 
-    use {PResult, Cursor, parse_error};
+    use {PResult, Cursor};
     use span::Span;
+    use ParseError;
+    use nom;
 
     pub trait FromSpans: Sized {
         fn from_spans(spans: &[Span]) -> Self;
@@ -433,13 +436,13 @@ mod parsing {
                     if i != s.len() - 1 {
                         match kind {
                             Spacing::Joint => {}
-                            _ => return parse_error(),
+                            _ => return Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens))),
                         }
                     }
                     *slot = Span(span);
                     tokens = rest;
                 }
-                _ => return parse_error()
+                _ => return Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens)))
             }
         }
         Ok((tokens, new(T::from_spans(&spans))))
@@ -455,7 +458,7 @@ mod parsing {
                 return Ok((rest, new(Span(span))));
             }
         }
-        parse_error()
+        Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens)))
     }
 
     pub fn delim<'a, F, R, T>(delim: &str,
@@ -484,7 +487,7 @@ mod parsing {
                 Err(err) => return Err(err),
             }
         }
-        parse_error()
+        Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens)))
     }
 }
 

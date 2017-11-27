@@ -390,10 +390,10 @@ pub mod parsing {
                         kind: TokenNode::Literal(lit)
                     }))
                 } else {
-                    parse_error()
+                    parse_error(input)
                 }
             }
-            _ => parse_error()
+            _ => parse_error(input)
         }
     }
 }
