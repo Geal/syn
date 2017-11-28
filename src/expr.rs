@@ -2083,7 +2083,7 @@ pub mod parsing {
                 if s.parse::<usize>().is_ok() {
                     Ident::new(Term::intern(&s), lit.span)
                 } else {
-                    return parse_error();
+                    return parse_error(Cursor::empty());
                 }
             })
         )
@@ -2160,7 +2160,7 @@ pub mod parsing {
         named!(parse -> Self, do_parse!(
             lit: pat_lit_expr >>
             (if let ExprKind::Path(_) = lit.node {
-                return parse_error(); // these need to be parsed by pat_path
+                return parse_error(Cursor::empty()); // these need to be parsed by pat_path
             } else {
                 PatLit {
                     expr: Box::new(lit),

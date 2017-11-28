@@ -35,7 +35,7 @@ pub use proc_macro2::{TokenTree, TokenStream};
 use std::convert::From;
 use std::error::Error;
 use std::fmt;
-use nom::{Convert,IResult};
+use nom::{Convert,IResult,ErrorKind};
 
 #[cfg(feature = "parsing")]
 #[doc(hidden)]
@@ -56,7 +56,7 @@ pub type PResult<'a, O> = IResult<Cursor<'a>, O, ParseError>;
 ///
 /// NOTE: We should provide better error messages in the future.
 pub fn parse_error<'a,O>(input: Cursor<'a>) -> PResult<'a, O> {
-    Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), input)))
+    Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), input)))
 }
 
 pub trait Synom: Sized {
@@ -67,7 +67,7 @@ pub trait Synom: Sized {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ParseError(Option<String>);
 
 impl Error for ParseError {
@@ -117,7 +117,7 @@ impl Synom for TokenStream {
 }
 
 impl<'a> From<nom::Err<Cursor<'a>>> for ParseError {
-    fn from(error: nom::Err<Cursor<'a>>) -> Self {
+    fn from(_: nom::Err<Cursor<'a>>) -> Self {
         ParseError(None)
     }
 }
@@ -125,6 +125,12 @@ impl<'a> From<nom::Err<Cursor<'a>>> for ParseError {
 impl From<u32> for ParseError {
     fn from(_: u32) -> Self {
         ParseError(None)
+    }
+}
+
+impl Convert<ParseError> for ParseError {
+    fn convert(e: ParseError) -> Self {
+        e
     }
 }
 
@@ -147,7 +153,8 @@ impl From<u32> for ParseError {
 macro_rules! named {
     ($name:ident -> $o:ty, $submac:ident!( $($args:tt)* )) => {
         fn $name(i: $crate::Cursor) -> $crate::PResult<$o> {
-            $submac!(i, $($args)*)
+            let res: $crate::PResult<$o> = $submac!(i, $($args)*);
+            res
         }
     };
 
@@ -181,109 +188,6 @@ pub fn invoke<T, R, F: FnOnce(T) -> R>(f: F, t: T) -> R {
     f(t)
 }
 
-/// Parses successfully if the given parser fails to parse. Does not consume any
-/// of the input.
-///
-/// - **Syntax:** `not!(THING)`
-/// - **Output:** `()`
-#[macro_export]
-macro_rules! not {
-    ($i:expr, $submac:ident!( $($args:tt)* )) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Ok(_) => $crate::parse_error($i),
-            ::std::result::Result::Err(_) =>
-                ::std::result::Result::Ok(($i, ())),
-        }
-    };
-}
-
-/// Conditionally execute the given parser.
-///
-/// If you are familiar with nom, this is nom's `cond_with_error` parser.
-///
-/// - **Syntax:** `cond!(CONDITION, THING)`
-/// - **Output:** `Some(THING)` if the condition is true, else `None`
-#[macro_export]
-macro_rules! cond {
-    ($i:expr, $cond:expr, $submac:ident!( $($args:tt)* )) => {
-        if $cond {
-            match $submac!($i, $($args)*) {
-                ::std::result::Result::Ok((i, o)) =>
-                    ::std::result::Result::Ok((i, ::std::option::Option::Some(o))),
-                ::std::result::Result::Err(x) => ::std::result::Result::Err(x),
-            }
-        } else {
-            ::std::result::Result::Ok(($i, ::std::option::Option::None))
-        }
-    };
-
-    ($i:expr, $cond:expr, $f:expr) => {
-        cond!($i, $cond, call!($f))
-    };
-}
-
-/// Fail to parse if condition is false, otherwise parse the given parser.
-///
-/// This is typically used inside of `option!` or `alt!`.
-///
-/// - **Syntax:** `cond_reduce!(CONDITION, THING)`
-/// - **Output:** `THING`
-#[macro_export]
-macro_rules! cond_reduce {
-    ($i:expr, $cond:expr, $submac:ident!( $($args:tt)* )) => {
-        if $cond {
-            $submac!($i, $($args)*)
-        } else {
-            $crate::parse_error($i)
-        }
-    };
-
-    ($i:expr, $cond:expr, $f:expr) => {
-        cond_reduce!($i, $cond, call!($f))
-    };
-}
-
-/// Parse two things, returning the value of the first.
-///
-/// - **Syntax:** `terminated!(THING, AFTER)`
-/// - **Output:** `THING`
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::Expr;
-///
-/// // An expression terminated by ##.
-/// named!(expr_pound_pound -> Expr,
-///     terminated!(syn!(Expr), tuple!(punct!(#), punct!(#)))
-/// );
-///
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! terminated {
-    ($i:expr, $submac:ident!( $($args:tt)* ), $submac2:ident!( $($args2:tt)* )) => {
-        match tuple!($i, $submac!($($args)*), $submac2!($($args2)*)) {
-            ::std::result::Result::Ok((i, (o, _))) =>
-                ::std::result::Result::Ok((i, o)),
-            ::std::result::Result::Err(err) =>
-                ::std::result::Result::Err(err),
-        }
-    };
-
-    ($i:expr, $submac:ident!( $($args:tt)* ), $g:expr) => {
-        terminated!($i, $submac!($($args)*), call!($g))
-    };
-
-    ($i:expr, $f:expr, $submac:ident!( $($args:tt)* )) => {
-        terminated!($i, call!($f), $submac!($($args)*))
-    };
-
-    ($i:expr, $f:expr, $g:expr) => {
-        terminated!($i, call!($f), call!($g))
-    };
-}
 
 /// Parse zero or more values using the given parser.
 ///
@@ -374,133 +278,6 @@ pub fn many0<'a, T>(mut input: Cursor, f: fn(Cursor) -> PResult<T>) -> PResult<V
     }
 }
 
-/// Pattern-match the result of a parser to select which other parser to run.
-///
-/// - **Syntax:** `switch!(TARGET, PAT1 => THEN1 | PAT2 => THEN2 | ...)`
-/// - **Output:** `T`, the return type of `THEN1` and `THEN2` and ...
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::{Ident, Type};
-///
-/// #[derive(Debug)]
-/// enum UnitType {
-///     Struct {
-///         name: Ident,
-///     },
-///     Enum {
-///         name: Ident,
-///         variant: Ident,
-///     },
-/// }
-///
-/// // Parse a unit struct or enum: either `struct S;` or `enum E { V }`.
-/// named!(unit_type -> UnitType, do_parse!(
-///     which: alt!(
-///         keyword!(struct) => { |_| 0 }
-///         |
-///         keyword!(enum) => { |_| 1 }
-///     ) >>
-///     id: syn!(Ident) >>
-///     item: switch!(value!(which),
-///         0 => map!(
-///             punct!(;),
-///             move |_| UnitType::Struct {
-///                 name: id,
-///             }
-///         )
-///         |
-///         1 => map!(
-///             braces!(syn!(Ident)),
-///             move |(variant, _)| UnitType::Enum {
-///                 name: id,
-///                 variant: variant,
-///             }
-///         )
-///         |
-///         _ => reject!()
-///     ) >>
-///     (item)
-/// ));
-///
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! switch {
-    ($i:expr, $submac:ident!( $($args:tt)* ), $($p:pat => $subrule:ident!( $($args2:tt)* ))|* ) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Err(err) => ::std::result::Result::Err(err),
-            ::std::result::Result::Ok((i, o)) => match o {
-                $(
-                    $p => $subrule!(i, $($args2)*),
-                )*
-            }
-        }
-    };
-}
-
-
-/// Produce the given value without parsing anything. Useful as an argument to
-/// `switch!`.
-///
-/// - **Syntax:** `value!(VALUE)`
-/// - **Output:** `VALUE`
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::Ident;
-///
-/// #[derive(Debug)]
-/// enum UnitType {
-///     Struct {
-///         name: Ident,
-///     },
-///     Enum {
-///         name: Ident,
-///         variant: Ident,
-///     },
-/// }
-///
-/// // Parse a unit struct or enum: either `struct S;` or `enum E { V }`.
-/// named!(unit_type -> UnitType, do_parse!(
-///     is_struct: alt!(
-///         keyword!(struct) => { |_| true }
-///         |
-///         keyword!(enum) => { |_| false }
-///     ) >>
-///     id: syn!(Ident) >>
-///     item: switch!(value!(is_struct),
-///         true => map!(
-///             punct!(;),
-///             move |_| UnitType::Struct {
-///                 name: id,
-///             }
-///         )
-///         |
-///         false => map!(
-///             braces!(syn!(Ident)),
-///             move |(variant, _)| UnitType::Enum {
-///                 name: id,
-///                 variant: variant,
-///             }
-///         )
-///     ) >>
-///     (item)
-/// ));
-///
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! value {
-    ($i:expr, $res:expr) => {
-        ::std::result::Result::Ok(($i, $res))
-    };
-}
-
 /// Unconditionally fail to parse anything. This may be useful in ignoring some
 /// arms of a `switch!` parser.
 ///
@@ -531,76 +308,6 @@ macro_rules! reject {
     }
 }
 
-
-/// Run a series of parsers and produce all of the results in a tuple.
-///
-/// - **Syntax:** `tuple!(A, B, C, ...)`
-/// - **Output:** `(A, B, C, ...)`
-///
-/// ```rust
-/// extern crate syn;
-/// #[macro_use] extern crate synom;
-///
-/// use syn::Type;
-///
-/// named!(two_types -> (Type, Type), tuple!(syn!(Type), syn!(Type)));
-///
-/// # fn main() {}
-/// ```
-#[macro_export]
-macro_rules! tuple {
-    ($i:expr, $($rest:tt)*) => {
-        tuple_parser!($i, (), $($rest)*)
-    };
-}
-
-/// Internal parser, do not use directly.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! tuple_parser {
-    ($i:expr, ($($parsed:tt),*), $e:ident, $($rest:tt)*) => {
-        tuple_parser!($i, ($($parsed),*), call!($e), $($rest)*)
-    };
-
-    ($i:expr, (), $submac:ident!( $($args:tt)* ), $($rest:tt)*) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Err(err) =>
-                ::std::result::Result::Err(err),
-            ::std::result::Result::Ok((i, o)) =>
-                tuple_parser!(i, (o), $($rest)*),
-        }
-    };
-
-    ($i:expr, ($($parsed:tt)*), $submac:ident!( $($args:tt)* ), $($rest:tt)*) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Err(err) =>
-                ::std::result::Result::Err(err),
-            ::std::result::Result::Ok((i, o)) =>
-                tuple_parser!(i, ($($parsed)* , o), $($rest)*),
-        }
-    };
-
-    ($i:expr, ($($parsed:tt),*), $e:ident) => {
-        tuple_parser!($i, ($($parsed),*), call!($e))
-    };
-
-    ($i:expr, (), $submac:ident!( $($args:tt)* )) => {
-        $submac!($i, $($args)*)
-    };
-
-    ($i:expr, ($($parsed:expr),*), $submac:ident!( $($args:tt)* )) => {
-        match $submac!($i, $($args)*) {
-            ::std::result::Result::Err(err) =>
-                ::std::result::Result::Err(err),
-            ::std::result::Result::Ok((i, o)) =>
-                ::std::result::Result::Ok((i, ($($parsed),*, o))),
-        }
-    };
-
-    ($i:expr, ($($parsed:expr),*)) => {
-        ::std::result::Result::Ok(($i, ($($parsed),*)))
-    };
-}
 
 /// Run a series of parsers, one after another, optionally assigning the results
 /// a name. Fail if any of the parsers fails.

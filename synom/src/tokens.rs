@@ -6,7 +6,6 @@
 //! corresponding feature is activated.
 
 use span::Span;
-use ParseError;
 
 macro_rules! tokens {
     (
@@ -426,6 +425,7 @@ mod parsing {
             -> PResult<'a, R>
         where T: FromSpans,
     {
+        use nom::ErrorKind;
         let mut spans = [Span::default(); 3];
         assert!(s.len() <= spans.len());
         let chars = s.chars();
@@ -436,13 +436,13 @@ mod parsing {
                     if i != s.len() - 1 {
                         match kind {
                             Spacing::Joint => {}
-                            _ => return Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens))),
+                            _ => return Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), tokens))),
                         }
                     }
                     *slot = Span(span);
                     tokens = rest;
                 }
-                _ => return Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens)))
+                _ => return Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), tokens)))
             }
         }
         Ok((tokens, new(T::from_spans(&spans))))
@@ -453,12 +453,13 @@ mod parsing {
                       new: fn(Span) -> T)
         -> PResult<'a, T>
     {
+        use nom::ErrorKind;
         if let Some((rest, span, s)) = tokens.word() {
             if s.as_str() == sym {
                 return Ok((rest, new(Span(span))));
             }
         }
-        Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens)))
+        Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), tokens)))
     }
 
     pub fn delim<'a, F, R, T>(delim: &str,
@@ -468,6 +469,8 @@ mod parsing {
         -> PResult<'a, (R, T)>
         where F: FnOnce(Cursor) -> PResult<R>
     {
+        use nom::ErrorKind;
+
         // NOTE: We should support none-delimited sequences here.
         let delim = match delim {
             "(" => Delimiter::Parenthesis,
@@ -487,7 +490,7 @@ mod parsing {
                 Err(err) => return Err(err),
             }
         }
-        Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), tokens)))
+        Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), tokens)))
     }
 }
 

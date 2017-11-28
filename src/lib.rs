@@ -175,7 +175,7 @@ fn _parse<T>(tokens: proc_macro2::TokenStream) -> Result<T, ParseError>
                 ParseError::new("failed to parse all tokens")
             }
         }
-        Err(err) => ParseError::new_empty(),
+        Err(_) => ParseError::new_empty(),
     };
     match T::description() {
         Some(s) => Err(ParseError::new(format!("failed to parse {}: {}", s, err))),

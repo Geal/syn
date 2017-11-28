@@ -1,7 +1,6 @@
 use std::iter::FromIterator;
 use std::slice;
 use std::vec;
-use nom;
 #[cfg(feature = "extra-traits")]
 use std::fmt::{self, Debug};
 
@@ -377,8 +376,11 @@ mod parsing {
                 parse: fn(Cursor) -> PResult<T>)
             -> PResult<Self>
         {
+            use nom::ErrorKind;
+            use ParseError;
+
             match Self::parse(input, parse, false) {
-                Ok((_, ref b)) if b.is_empty() => Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), input))),
+                Ok((_, ref b)) if b.is_empty() => Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), input))),
                 other => other,
             }
         }
@@ -396,6 +398,9 @@ mod parsing {
                  terminated: bool)
             -> PResult<Self>
         {
+            use nom::ErrorKind;
+            use ParseError;
+
             let mut res = Delimited::new();
 
             // get the first element
@@ -403,7 +408,7 @@ mod parsing {
                 Err(_) => Ok((input, res)),
                 Ok((i, o)) => {
                     if i == input {
-                        return Err(nom::Err::Error(error_position!(ErrorKind::Custom(0), input)));
+                        return Err(nom::Err::Error(error_position!(ErrorKind::Custom(ParseError(None)), input)));
                     }
                     input = i;
                     res.push_first(o);
