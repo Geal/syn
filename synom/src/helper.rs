@@ -5,6 +5,7 @@
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::tokens::Bang;
@@ -40,6 +41,7 @@ macro_rules! option {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::{Lifetime, Type};
@@ -80,6 +82,7 @@ macro_rules! opt_vec {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::Mutability;
@@ -108,6 +111,7 @@ macro_rules! epsilon {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::{Expr, ExprCall};
@@ -161,6 +165,7 @@ macro_rules! tap {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::Expr;
@@ -189,6 +194,7 @@ macro_rules! syn {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::Expr;

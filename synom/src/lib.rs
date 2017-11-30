@@ -140,6 +140,7 @@ impl Convert<ParseError> for ParseError {
 ///
 /// ```rust
 /// # extern crate syn;
+/// # #[macro_use] extern crate nom;
 /// # #[macro_use] extern crate synom;
 /// # use syn::Type;
 /// # use synom::delimited::Delimited;
@@ -202,6 +203,7 @@ pub fn invoke<T, R, F: FnOnce(T) -> R>(f: F, t: T) -> R {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::Item;
@@ -286,6 +288,7 @@ pub fn many0<'a, T>(mut input: Cursor, f: fn(Cursor) -> PResult<T>) -> PResult<V
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 ///
 /// use syn::Item;
@@ -320,6 +323,7 @@ macro_rules! reject {
 ///
 /// ```rust
 /// extern crate syn;
+/// #[macro_use] extern crate nom;
 /// #[macro_use] extern crate synom;
 /// extern crate proc_macro2;
 ///
